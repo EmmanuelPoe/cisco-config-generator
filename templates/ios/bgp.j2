@@ -1,0 +1,25 @@
+! ============================================================
+! BGP Configuration — {{ hostname }}
+! ============================================================
+hostname {{ hostname }}
+!
+router bgp {{ local_asn }}
+ bgp router-id {{ router_id }}
+ bgp log-neighbor-changes
+{% for neighbor in neighbors %}
+ neighbor {{ neighbor.ip }} remote-as {{ neighbor.remote_asn }}
+{% if neighbor.description is defined and neighbor.description %}
+ neighbor {{ neighbor.ip }} description {{ neighbor.description }}
+{% endif %}
+ neighbor {{ neighbor.ip }} send-community
+{% endfor %}
+!
+ address-family ipv4
+{% for neighbor in neighbors %}
+  neighbor {{ neighbor.ip }} activate
+{% endfor %}
+{% for net in networks %}
+  network {{ net }} mask 255.255.255.0
+{% endfor %}
+ exit-address-family
+!

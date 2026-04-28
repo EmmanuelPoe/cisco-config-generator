@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cisco Config Generator</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header>
+    <div class="header-inner">
+      <div>
+        <h1>Cisco Config Generator</h1>
+        <p class="subtitle">Generate production-ready IOS configurations instantly</p>
+      </div>
+      <a href="https://github.com/EmmanuelPoe/cisco-config-generator" target="_blank" class="gh-link">&#128279; GitHub</a>
+    </div>
+  </header>
+
+  <main>
+    <div class="sidebar">
+      <p class="sidebar-label">Config Type</p>
+      <button class="tab-btn active" onclick="switchTab('ospf')">OSPF</button>
+      <button class="tab-btn" onclick="switchTab('bgp')">BGP</button>
+      <button class="tab-btn" onclick="switchTab('vlan')">VLAN / L3 Switch</button>
+      <button class="tab-btn" onclick="switchTab('dmvpn')">DMVPN</button>
+      <button class="tab-btn" onclick="switchTab('acl')">ACL</button>
+      <button class="tab-btn" onclick="switchTab('interface')">Interface</button>
+    </div>
+
+    <div class="editor-pane">
+      <!-- OSPF -->
+      <div class="tab-content active" id="tab-ospf">
+        <h2>OSPF Configuration</h2>
+        <div class="form-grid">
+          <div class="field"><label>Hostname</label><input id="ospf-hostname" value="CORE-RTR-01"></div>
+          <div class="field"><label>Router ID</label><input id="ospf-rid" value="10.0.0.1"></div>
+          <div class="field"><label>Process ID</label><input id="ospf-pid" type="number" value="1"></div>
+          <div class="field check"><label><input type="checkbox" id="ospf-default"> Originate default route</label></div>
+        </div>
+        <p class="field-label">Networks (one per line: network wildcard area)</p>
+        <textarea id="ospf-networks" rows="4">10.0.0.0 0.0.0.255 0
+192.168.1.0 0.0.0.255 1</textarea>
+        <p class="field-label">Passive interfaces (one per line)</p>
+        <textarea id="ospf-passive" rows="2">GigabitEthernet0/1
+Loopback0</textarea>
+        <button class="generate-btn" onclick="generate('ospf')">Generate Config</button>
+      </div>
+
+      <!-- BGP -->
+      <div class="tab-content" id="tab-bgp">
+        <h2>BGP Configuration</h2>
+        <div class="form-grid">
+          <div class="field"><label>Hostname</label><input id="bgp-hostname" value="EDGE-RTR-01"></div>
+          <div class="field"><label>Local ASN</label><input id="bgp-asn" type="number" value="65001"></div>
+          <div class="field"><label>Router ID</label><input id="bgp-rid" value="10.0.0.1"></div>
+        </div>
+        <p class="field-label">Neighbors (one per line: ip remote-asn description)</p>
+        <textarea id="bgp-neighbors" rows="3">10.0.0.2 65002 eBGP-Upstream
+10.0.0.3 65001 iBGP-Peer</textarea>
+        <p class="field-label">Advertised networks (CIDR, one per line)</p>
+        <textarea id="bgp-networks" rows="2">192.168.0.0/24
+10.1.0.0/16</textarea>
+        <button class="generate-btn" onclick="generate('bgp')">Generate Config</button>
+      </div>
+
+      <!-- VLAN -->
+      <div class="tab-content" id="tab-vlan">
+        <h2>VLAN / Layer 3 Switch Configuration</h2>
+        <div class="form-grid">
+          <div class="field"><label>Hostname</label><input id="vlan-hostname" value="DIST-SW-01"></div>
+          <div class="field"><label>Native VLAN</label><input id="vlan-native" type="number" value="1"></div>
+        </div>
+        <p class="field-label">VLANs (one per line: id name ip mask)</p>
+        <textarea id="vlan-vlans" rows="4">10 SALES 10.10.10.1 255.255.255.0
+20 ENGINEERING 10.10.20.1 255.255.255.0
+30 MANAGEMENT 10.10.30.1 255.255.255.0</textarea>
+        <p class="field-label">Trunk ports (one per line)</p>
+        <textarea id="vlan-trunks" rows="2">GigabitEthernet0/1
+GigabitEthernet0/2</textarea>
+        <button class="generate-btn" onclick="generate('vlan')">Generate Config</button>
+      </div>
+
+      <!-- DMVPN -->
+      <div class="tab-content" id="tab-dmvpn">
+        <h2>DMVPN Phase 2 Configuration</h2>
+        <div class="form-grid">
+          <div class="field"><label>Hostname</label><input id="dmvpn-hostname" value="HUB-RTR-01"></div>
+          <div class="field">
+            <label>Role</label>
+            <select id="dmvpn-role" onchange="toggleDMVPNRole()">
+              <option value="hub">Hub</option>
+              <option value="spoke">Spoke</option>
+            </select>
+          </div>
+          <div class="field"><label>Tunnel IP</label><input id="dmvpn-tip" value="172.16.0.1"></div>
+          <div class="field"><label>Tunnel Mask</label><input id="dmvpn-tmask" value="255.255.255.0"></div>
+          <div class="field"><label>Tunnel Source Interface</label><input id="dmvpn-tsrc" value="GigabitEthernet0/0"></div>
+          <div class="field"><label>NHRP Network ID</label><input id="dmvpn-nid" type="number" value="100"></div>
+          <div class="field"><label>NHRP Key</label><input id="dmvpn-key" value="cisco123"></div>
+          <div class="field"><label>OSPF Process ID</label><input id="dmvpn-ospf" type="number" value="1"></div>
+        </div>
+        <div id="dmvpn-spoke-fields" style="display:none">
+          <div class="form-grid">
+            <div class="field"><label>Hub Public IP</label><input id="dmvpn-hub-pub" value="203.0.113.1"></div>
+            <div class="field"><label>Hub Tunnel IP</label><input id="dmvpn-hub-tun" value="172.16.0.1"></div>
+          </div>
+        </div>
+        <button class="generate-btn" onclick="generate('dmvpn')">Generate Config</button>
+      </div>
+
+      <!-- ACL -->
+      <div class="tab-content" id="tab-acl">
+        <h2>Access Control List</h2>
+        <div class="form-grid">
+          <div class="field"><label>Hostname</label><input id="acl-hostname" value="CORE-RTR-01"></div>
+          <div class="field"><label>ACL Name</label><input id="acl-name" value="SECURE_INBOUND"></div>
+          <div class="field">
+            <label>Type</label>
+            <select id="acl-type"><option value="extended">Extended</option><option value="standard">Standard</option></select>
+          </div>
+          <div class="field"><label>Apply to (interface + direction)</label><input id="acl-apply" placeholder="GigabitEthernet0/0 in"></div>
+        </div>
+        <p class="field-label">Rules (one per line: action protocol src dst [dst_port] | remark text)</p>
+        <textarea id="acl-rules" rows="6">remark Block Telnet
+deny tcp any any 23
+remark Block unencrypted HTTP
+deny tcp any any 80
+remark Allow SSH
+permit tcp any any 22
+remark Allow all other IP
+permit ip any any</textarea>
+        <button class="generate-btn" onclick="generate('acl')">Generate Config</button>
+      </div>
+
+      <!-- Interface -->
+      <div class="tab-content" id="tab-interface">
+        <h2>Interface Configuration</h2>
+        <div class="form-grid">
+          <div class="field"><label>Hostname</label><input id="iface-hostname" value="CORE-RTR-01"></div>
+        </div>
+        <p class="field-label">Interfaces (one per line: name ip mask description)</p>
+        <textarea id="iface-ifaces" rows="5">GigabitEthernet0/0 10.0.0.1 255.255.255.252 Uplink to ISP
+GigabitEthernet0/1 192.168.1.1 255.255.255.0 LAN Segment
+Loopback0 10.255.0.1 255.255.255.255 Router ID</textarea>
+        <button class="generate-btn" onclick="generate('interface')">Generate Config</button>
+      </div>
+    </div>
+
+    <div class="output-pane">
+      <div class="output-header">
+        <span>Generated Configuration</span>
+        <button class="copy-btn" onclick="copyOutput()" id="copy-btn">Copy</button>
+      </div>
+      <pre id="output"><code>// Select a config type and click Generate Config</code></pre>
+    </div>
+  </main>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

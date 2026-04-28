@@ -1,0 +1,30 @@
+! ============================================================
+! VLAN / Layer 3 Switch Configuration — {{ hostname }}
+! ============================================================
+hostname {{ hostname }}
+!
+ip routing
+!
+{% for vlan in vlans %}
+vlan {{ vlan.id }}
+ name {{ vlan.name }}
+!
+{% endfor %}
+{% for vlan in vlans %}
+interface Vlan{{ vlan.id }}
+ description {{ vlan.name }} SVI
+ ip address {{ vlan.ip }} {{ vlan.mask }}
+ no shutdown
+!
+{% endfor %}
+{% for port in trunk_ports %}
+interface {{ port }}
+ description Trunk Port
+ switchport mode trunk
+ switchport trunk encapsulation dot1q
+ switchport trunk native vlan {{ native_vlan }}
+ switchport trunk allowed vlan {% for vlan in vlans %}{{ vlan.id }}{% if not loop.last %},{% endif %}{% endfor %}
+
+ no shutdown
+!
+{% endfor %}
