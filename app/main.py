@@ -1,7 +1,9 @@
-from fastapi import FastAPI
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse
 from pathlib import Path
+
+from fastapi import FastAPI
+from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
+
 from app.routes.generator import router as gen_router
 
 app = FastAPI(title="Cisco Config Generator", version="1.0.0")

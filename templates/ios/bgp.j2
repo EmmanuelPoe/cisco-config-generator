@@ -19,7 +19,7 @@ router bgp {{ local_asn }}
   neighbor {{ neighbor.ip }} activate
 {% endfor %}
 {% for net in networks %}
-  network {{ net }} mask 255.255.255.0
+  network {{ net.network_address }} mask {{ net.netmask }}
 {% endfor %}
  exit-address-family
 !
