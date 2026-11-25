@@ -1,65 +1,79 @@
 # Cisco Config Generator
 
-A web-based tool for generating valid Cisco IOS and NX-OS configurations from structured input. Fill out a form, get production-ready config output instantly.
+A web tool that generates Cisco IOS configuration snippets from structured input. Fill out a form (or call the API), get config you can review and paste into a device.
 
-## Features
+## Generators
 
-- **Router Config** — generate IOS configs for interfaces, OSPF, EIGRP, BGP, ACLs
-- **Switch Config** — VLAN, trunk, access port, STP, and port-security templates
-- **Firewall Rules** — ASA and NX-OS ACL generation from plain-language rules
-- **DMVPN Hub/Spoke** — full DMVPN Phase 2/3 config generation
-- **Validation** — input validation with error highlighting before generation
+| Generator | Endpoint | Produces |
+|---|---|---|
+| Interfaces | `POST /generate/interface` | routed interfaces with IP, mask, description |
+| OSPF | `POST /generate/ospf` | `router ospf` with networks/areas, passive interfaces, default route origination |
+| BGP | `POST /generate/bgp` | `router bgp` with neighbors and advertised prefixes (CIDR in, `network … mask …` out) |
+| VLAN / SVI | `POST /generate/vlan` | VLANs, SVIs, 802.1Q trunks with native and allowed VLANs |
+| DMVPN Phase 2 | `POST /generate/dmvpn` | hub or spoke: IKEv1/IPsec transport profile, mGRE tunnel, NHRP, OSPF (hub as DR) |
+| ACL | `POST /generate/acl` | standard or extended named ACLs with remarks, optional interface binding |
 
-## Tech Stack
+Every input is validated before rendering (IP addresses, masks, wildcards, ASNs, VLAN IDs, interface names, ports), and no field may contain a newline or control character, so one field cannot inject extra configuration lines. Invalid input returns HTTP 422 with the reason.
 
-- Python 3.10+
-- FastAPI — REST API backend
-- Jinja2 — config templating engine
-- HTML/CSS/JavaScript — frontend form interface
+## Tech stack
 
-## Project Structure
+Python 3.10+, FastAPI, Pydantic v2, Jinja2; HTML/CSS/vanilla JavaScript frontend.
+
+## Project structure
 
 ```
 cisco-config-generator/
 ├── app/
-│   ├── main.py               # FastAPI app
-│   ├── routes/
-│   │   └── generator.py      # Config generation endpoints
-│   └── models.py             # Pydantic input models
-├── templates/
-│   ├── ios/
-│   │   ├── router_base.j2
-│   │   ├── ospf.j2
-│   │   ├── bgp.j2
-│   │   └── dmvpn_hub.j2
-│   └── nxos/
-│       ├── vlan.j2
-│       └── vpc.j2
-├── static/
-│   ├── style.css
-│   └── app.js
-├── web/
-│   └── index.html
-└── requirements.txt
+│   ├── main.py               # FastAPI app; serves the UI and static files
+│   ├── models.py             # Pydantic request models and validation
+│   └── routes/generator.py   # /generate/* endpoints
+├── templates/ios/            # acl, bgp, dmvpn, interface, ospf, vlan (.j2)
+├── static/                   # app.js, style.css
+├── web/index.html            # the form UI
+├── tests/test_generate.py
+├── requirements.txt / requirements-dev.txt
+└── pytest.ini, ruff.toml
 ```
 
-## Quick Start
+## Quick start
 
 ```bash
 pip install -r requirements.txt
 uvicorn app.main:app --reload
-# Open http://localhost:8000
+# UI:  http://localhost:8000
+# API docs: http://localhost:8000/docs
 ```
 
-## API Example
+## API example
 
 ```bash
 curl -X POST http://localhost:8000/generate/ospf \
   -H "Content-Type: application/json" \
   -d '{
+    "hostname": "CORE-RTR-01",
     "router_id": "10.0.0.1",
     "process_id": 1,
-    "networks": ["10.0.0.0/24", "192.168.1.0/24"],
-    "area": 0
+    "networks": [{"network": "10.0.0.0", "wildcard": "0.0.0.255", "area": 0}],
+    "passive_interfaces": ["GigabitEthernet0/1"]
   }'
 ```
+
+DMVPN requires two secrets with no defaults: `nhrp_key` (NHRP authentication, up to 8 characters) and `ipsec_psk` (IKE pre-shared key, 16+ characters). ACL addresses are `any`, `host A.B.C.D`, or `A.B.C.D <wildcard>`.
+
+## Development
+
+```bash
+pip install -r requirements-dev.txt
+ruff check app tests && ruff format --check app tests
+pytest -q
+```
+
+CI runs the same checks on every pull request.
+
+## Roadmap
+
+EIGRP, STP/port-security, NX-OS and ASA templates.
+
+Always review generated configuration before applying it to a device.
+
+Agent and contributor docs: [CLAUDE.md](CLAUDE.md) and [docs/](docs/).

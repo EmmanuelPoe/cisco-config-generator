@@ -1,29 +1,31 @@
 # Security
 
-Generated output is meant to be pasted into network devices, so the main risk is **wrong or injected configuration**, not data theft.
+Generated output is meant to be pasted into network devices, so the main risks are **injected or wrong configuration**, then the usual web-app concerns.
 
-## 1. Config injection (open)
+## 1. Config injection (handled — keep it that way)
 
-Strings go into templates unescaped, so a value containing a newline adds whole IOS lines. Verified: `{"hostname": "R1\nusername evil privilege 15 secret x", ...}` produces a `username evil privilege 15` line. Anyone who pastes output built from someone else's input (a shared link, a ticket, an API client) can be given a backdoor.
+Templates insert values verbatim (no escaping makes sense for CLI text). Protection is entirely in `app/models.py`:
 
-**Fix in `app/models.py`, not in templates**:
-- Reject control characters in every string: a reusable `Annotated[str, StringConstraints(pattern=r"^[^\r\n\x00-\x1f]*$", max_length=...)]` type.
-- Use real types: `ipaddress.IPv4Address` for IPs and router IDs, validated masks/wildcards, `conint` ranges for ASNs (1-4294967295), VLAN IDs (1-4094), areas, and `Literal[...]` for `action`/`protocol`.
-- Replace `List[dict]` with nested Pydantic models so every nested field is validated too.
-- Restrict `hostname`, `acl_name` and descriptions to the characters IOS accepts.
+- every string field has a constrained type; `Description` and every pattern exclude `\r`, `\n` and other control characters
+- addresses, masks, wildcards, ports, ASNs and VLAN IDs are parsed, not just pattern-matched
+- `extra="forbid"` rejects unknown fields; nested objects are Pydantic models, not dicts
+- `tests/test_generate.py::test_newlines_are_rejected_everywhere` covers each generator
 
-## 2. Insecure defaults in output
+Rules: never add a `str`/`dict` field without a constrained type; never build a template path or template source from input; add an injection test for any new string field.
 
-- `DMVPNConfig.nhrp_key` defaults to `cisco123`, and the template reuses it as the ISAKMP pre-shared key for every peer (`address 0.0.0.0`). Remove the default (make it required), enforce a minimum length for the PSK, and use a separate field for the NHRP authentication string (IOS limits it to 8 characters).
-- Generated configs never include `service password-encryption`, enable secrets or AAA; that is out of scope, but do not add plaintext `password` lines.
+## 2. Secrets in generated config
+
+- `DMVPNConfig.nhrp_key` (≤ 8 chars, IOS limit) and `ipsec_psk` (16-128 chars) are required and have no defaults. The UI fields are empty with `autocomplete="off"`, and the PSK field is a password input.
+- The PSK is used for `crypto isakmp key ... address 0.0.0.0 0.0.0.0` (a wildcard key shared by all DMVPN peers, standard for DMVPN). Use a long random value and rotate it per deployment; certificate-based IKEv2 is the stronger option if the template is extended.
+- Generated configs are shown in the browser and returned in HTTP responses; nothing is stored server-side. Do not log request bodies.
 
 ## 3. Web app exposure
 
-- No authentication. `uvicorn app.main:app --reload` listens on 127.0.0.1 by default; do not add `--host 0.0.0.0` in docs or scripts without adding authentication or a reverse proxy.
-- `/docs` and `/openapi.json` are public. That is acceptable for a local tool; disable them (`docs_url=None`, ...) if it is ever hosted.
-- `static/app.js` writes server responses with `textContent` (safe). Keep using `textContent` for any output display.
-- `fetch` targets are relative (`/generate/...`); no CORS is configured, and none is needed.
+- No authentication. `uvicorn app.main:app --reload` listens on 127.0.0.1 by default; do not document `--host 0.0.0.0` without adding authentication or a reverse proxy.
+- `/docs` and `/openapi.json` are public; acceptable for a local tool, disable them (`docs_url=None`, `redoc_url=None`, `openapi_url=None`) if hosted.
+- `static/app.js` writes responses with `textContent`; keep using it for all output.
+- Requests are same-origin; no CORS is configured or needed.
 
 ## 4. Supply chain
 
-Unpinned `>=` requirements. Pin them or add a lock file, and run `pip-audit -r requirements.txt`.
+`requirements.txt` uses minimum versions. Pin versions for deployment and run `pip-audit -r requirements.txt` periodically.

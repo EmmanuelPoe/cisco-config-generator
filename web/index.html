@@ -97,7 +97,8 @@ GigabitEthernet0/2</textarea>
           <div class="field"><label>Tunnel Mask</label><input id="dmvpn-tmask" value="255.255.255.0"></div>
           <div class="field"><label>Tunnel Source Interface</label><input id="dmvpn-tsrc" value="GigabitEthernet0/0"></div>
           <div class="field"><label>NHRP Network ID</label><input id="dmvpn-nid" type="number" value="100"></div>
-          <div class="field"><label>NHRP Key</label><input id="dmvpn-key" value="cisco123"></div>
+          <div class="field"><label>NHRP Auth Key (max 8 chars)</label><input id="dmvpn-key" maxlength="8" placeholder="required" autocomplete="off"></div>
+          <div class="field"><label>IPsec Pre-Shared Key (16+ chars)</label><input id="dmvpn-psk" type="password" minlength="16" placeholder="required" autocomplete="off"></div>
           <div class="field"><label>OSPF Process ID</label><input id="dmvpn-ospf" type="number" value="1"></div>
         </div>
         <div id="dmvpn-spoke-fields" style="display:none">
@@ -121,7 +122,7 @@ GigabitEthernet0/2</textarea>
           </div>
           <div class="field"><label>Apply to (interface + direction)</label><input id="acl-apply" placeholder="GigabitEthernet0/0 in"></div>
         </div>
-        <p class="field-label">Rules (one per line: action protocol src dst [dst_port] | remark text)</p>
+        <p class="field-label">Rules (one per line: <code>action protocol src dst [port]</code> or <code>remark text</code>; src/dst = any | host A.B.C.D | A.B.C.D wildcard; standard ACLs: <code>action src</code>)</p>
         <textarea id="acl-rules" rows="6">remark Block Telnet
 deny tcp any any 23
 remark Block unencrypted HTTP

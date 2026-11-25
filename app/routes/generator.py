@@ -1,12 +1,22 @@
+from pathlib import Path
+
 from fastapi import APIRouter
 from fastapi.responses import PlainTextResponse
-from jinja2 import Environment, FileSystemLoader
-from pathlib import Path
-from app.models import OSPFConfig, BGPConfig, VLANConfig, DMVPNConfig, ACLConfig, InterfaceConfig
+from jinja2 import Environment, FileSystemLoader, StrictUndefined
+
+from app.models import ACLConfig, BGPConfig, DMVPNConfig, InterfaceConfig, OSPFConfig, VLANConfig
 
 router = APIRouter(prefix="/generate")
 TMPL_DIR = Path(__file__).resolve().parent.parent.parent / "templates"
-env = Environment(loader=FileSystemLoader(str(TMPL_DIR)), trim_blocks=True, lstrip_blocks=True)
+# autoescape off: output is IOS CLI text, not HTML. Inputs are validated in app/models.py instead.
+# StrictUndefined: a typo in a template variable fails loudly instead of rendering blank.
+env = Environment(
+    loader=FileSystemLoader(str(TMPL_DIR)),
+    trim_blocks=True,
+    lstrip_blocks=True,
+    autoescape=False,
+    undefined=StrictUndefined,
+)
 
 
 def render(template_path: str, data: dict) -> str:
@@ -36,7 +46,10 @@ async def gen_vlan(cfg: VLANConfig):
 
 @router.post("/dmvpn", response_class=PlainTextResponse)
 async def gen_dmvpn(cfg: DMVPNConfig):
-    return render("ios/dmvpn.j2", cfg.model_dump())
+    data = cfg.model_dump()
+    data["tunnel_network"] = cfg.tunnel_network.network_address
+    data["tunnel_wildcard"] = cfg.tunnel_network.hostmask
+    return render("ios/dmvpn.j2", data)
 
 
 @router.post("/acl", response_class=PlainTextResponse)

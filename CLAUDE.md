@@ -4,47 +4,42 @@ Guidance for AI agents working in this repository. Read this first, then the mat
 
 ## What this is
 
-A FastAPI app that renders Cisco IOS configuration snippets from JSON input using Jinja2 templates, plus a single-page form UI. Six generators, each a `POST /generate/<type>` endpoint returning `text/plain`: `interface`, `ospf`, `bgp`, `vlan`, `dmvpn`, `acl`. All templates are IOS (`templates/ios/`); there are no NX-OS or ASA templates.
+A FastAPI app that renders Cisco IOS configuration snippets from JSON input using Jinja2 templates, plus a single-page form UI. Six generators, each a `POST /generate/<type>` endpoint returning `text/plain`: `interface`, `ospf`, `bgp`, `vlan`, `dmvpn`, `acl`. All templates are IOS (`templates/ios/`).
 
-**The README overstates the repo**: EIGRP, STP/port-security, ASA/NX-OS firewall rules, `router_base.j2`, `dmvpn_hub.j2`, `templates/nxos/` and "input validation with error highlighting" do not exist. Output is not "production-ready" — see the known issues below.
+The core safety property: **every input is validated in `app/models.py` before it reaches a template**, and no string may contain a newline or control character. Output is pasted into devices line by line, so an unvalidated newline would let a field inject arbitrary commands.
 
 ## Commands
 
 ```bash
-pip install -r requirements.txt
-uvicorn app.main:app --reload            # http://localhost:8000 (UI), /docs (OpenAPI)
-curl -X POST localhost:8000/generate/ospf -H 'Content-Type: application/json' \
-  -d '{"hostname":"R1","router_id":"10.0.0.1","networks":[{"network":"10.0.0.0","wildcard":"0.0.0.255","area":0}]}'
+pip install -r requirements-dev.txt     # runtime + pytest, httpx, ruff
+uvicorn app.main:app --reload           # http://localhost:8000 (UI), /docs (OpenAPI)
+pytest -q                               # 36 tests
+ruff check app tests && ruff format --check app tests
 ```
 
-Note: the README's curl example sends `networks` as CIDR strings and `area` at the top level; the real `OSPFConfig` model wants a list of `{network, wildcard, area}` objects.
-
-No tests, linter config or CI exist yet.
+CI (`.github/workflows/ci.yml`) runs ruff and pytest on every pull request.
 
 ## Layout
 
 ```
 app/main.py              FastAPI app: mounts /static, includes router, serves web/index.html at /
-app/routes/generator.py  Jinja2 Environment (trim_blocks, lstrip_blocks) + the six POST endpoints
-app/models.py            Pydantic v2 request models (one per generator)
+app/routes/generator.py  Jinja2 Environment (trim/lstrip blocks, StrictUndefined, no autoescape) + six endpoints
+app/models.py            Pydantic v2 models; constrained types (Hostname, InterfaceName, Description, Netmask, Wildcard, AclAddress, ...)
 templates/ios/*.j2       acl, bgp, dmvpn, interface, ospf, vlan
-web/index.html           the form UI (sidebar tabs, editor pane, output pane)
+web/index.html           the form UI
 static/app.js            builds JSON payloads from form fields, calls /generate/<type>, shows/copies output
-static/style.css         dark GitHub-style theme
+tests/test_generate.py   rendering, validation and injection tests
+pytest.ini, ruff.toml    test path and lint settings
 ```
-
-## Known issues — read before changing templates or models
-
-1. **Config injection**: string fields are inserted into templates raw. A newline in any field (e.g. `hostname`) adds arbitrary IOS lines to the output — verified with `"hostname": "R1\nusername evil privilege 15 secret x"`. See [docs/security.md](docs/security.md).
-2. **No semantic validation**: IPs, masks, wildcards, interface names and ACL fields are plain `str`/`dict`; `"router_id": "not-an-ip"` returns 200.
-3. **DMVPN template**: `crypto profile DMVPN-PROFILE` is not a valid IOS command (should be `crypto ipsec profile`); the header says IKEv2 but it configures ISAKMP (IKEv1); the NHRP key doubles as the IPsec pre-shared key, defaults to `cisco123`, and is applied with `address 0.0.0.0`.
 
 ## Rules for agents
 
-- Every new or changed input field must be validated in `app/models.py` (types, regex, `ipaddress`) so nothing with newlines or control characters reaches a template.
-- One endpoint, one model, one template per config type; keep that 1:1 mapping.
-- Never put real credentials, keys or customer configs in templates, model defaults or examples.
-- Keep the README in sync with what is actually implemented.
+- Any new field gets a constrained type from `app/models.py` (or a new one there). Never use bare `str`, `dict` or `List[dict]`. Models use `extra="forbid"`.
+- One endpoint, one model, one template per config type.
+- Templates only format; computed values (e.g. DMVPN tunnel network/wildcard) are derived in Python and passed in.
+- Secrets (`nhrp_key`, `ipsec_psk`) have no defaults and must not get example values in the UI or docs.
+- Add tests for rendering, validation failures (422) and newline injection with every change.
+- Keep the README generator table and `static/app.js` payload builders in sync with the models.
 
 ## Docs
 

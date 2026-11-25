@@ -16,21 +16,22 @@ Theme: GitHub-dark palette — background `#0d1117`, panels `#161b22`, borders `
 
 - `switchTab(name)` relies on the **order** of `.tab-btn` elements matching `['ospf','bgp','vlan','dmvpn','acl','interface']`. Adding a tab means adding to that array in the same position.
 - `toggleDMVPNRole()` shows `#dmvpn-spoke-fields` only for role `spoke`.
-- `buildPayload(type)` reads fields by ID and parses textareas line by line (`parseLines`), splitting on whitespace:
+- `buildPayload(type)` reads fields by ID and parses textareas line by line (`parseLines`):
   - OSPF networks: `network wildcard area`
-  - BGP neighbors: `ip remote_asn description...`
+  - BGP neighbors: `ip remote_asn description...`; BGP networks: one CIDR per line
   - VLANs: `id name ip mask`
-  - ACL rules: `action protocol src dst [dst_port]`, or `remark <text>`
+  - ACL rules: `remark <text>`, or `action protocol src dst [port]` (extended) / `action src` (standard), where an address is `any`, `host A.B.C.D` or `A.B.C.D <wildcard>`
   - Interfaces: `name ip mask description...`
-- `generate(type)` POSTs JSON, shows the text response, or `! Error: <detail>` for 4xx/5xx, all via `textContent`.
+- `generate(type)` POSTs JSON and shows the text response, or `! Error: <detail>` (the Pydantic validation details) for 4xx/5xx, via `textContent`.
 - `copyOutput()` uses `navigator.clipboard` (needs `localhost` or HTTPS).
 
 ## Element IDs
 
-Per tab: `<type>-hostname` plus `ospf-rid|pid|default|networks|passive`, `bgp-asn|rid|neighbors|networks`, `vlan-native|vlans|trunks`, `dmvpn-role|tip|tmask|tsrc|nid|key|ospf|hub-pub|hub-tun`, `acl-name|type|apply|rules`, `iface-ifaces`; shared `output`, `copy-btn`.
+Per tab: `<type>-hostname` plus `ospf-rid|pid|default|networks|passive`, `bgp-asn|rid|neighbors|networks`, `vlan-native|vlans|trunks`, `dmvpn-role|tip|tmask|tsrc|nid|key|psk|ospf|hub-pub|hub-tun`, `acl-name|type|apply|rules`, `iface-ifaces`; shared `output`, `copy-btn`.
 
 ## Conventions
 
 - No framework or build step; plain DOM APIs and inline `onclick` handlers.
-- Validation errors from Pydantic come back as JSON in `detail`; the UI prints them raw. If you add client-side checks, mirror (never replace) server-side validation.
+- Secret fields (`dmvpn-key`, `dmvpn-psk`) start empty with `autocomplete="off"`; never pre-fill them.
+- Server-side validation is the source of truth; client-side hints (`maxlength`, `minlength`, placeholders) are conveniences only.
 - The grid layout does not collapse on narrow screens; add a media query if mobile matters.

@@ -73,6 +73,7 @@ function buildPayload(type) {
         tunnel_source: document.getElementById('dmvpn-tsrc').value,
         nhrp_network_id: parseInt(document.getElementById('dmvpn-nid').value),
         nhrp_key: document.getElementById('dmvpn-key').value,
+        ipsec_psk: document.getElementById('dmvpn-psk').value,
         ospf_process: parseInt(document.getElementById('dmvpn-ospf').value),
       };
       if (role === 'spoke') {
@@ -82,20 +83,25 @@ function buildPayload(type) {
       return payload;
     }
     case 'acl': {
-      const rules = [];
-      parseLines(document.getElementById('acl-rules').value).forEach(line => {
-        if (line.startsWith('remark ')) {
-          rules.push({ action: 'remark', protocol: '', src: '', dst: '', remark: line.slice(7) });
-        } else {
-          const parts = line.split(/\s+/);
-          const [action, protocol, src, dst, dst_port] = parts;
-          rules.push({ action, protocol, src, dst, dst_port: dst_port || '', remark: '' });
-        }
+      const aclType = document.getElementById('acl-type').value;
+      const rules = parseLines(document.getElementById('acl-rules').value).map(line => {
+        if (line.startsWith('remark ')) return { action: 'remark', remark: line.slice(7) };
+        const tokens = line.split(/\s+/);
+        // Address: "any" (1 token), "host A.B.C.D" or "A.B.C.D wildcard" (2 tokens).
+        const takeAddress = () => (tokens[0] === 'any' ? tokens.shift() : tokens.splice(0, 2).join(' '));
+        const action = tokens.shift();
+        if (aclType === 'standard') return { action, src: takeAddress() };
+        const protocol = tokens.shift();
+        const src = takeAddress();
+        const dst = takeAddress();
+        const rule = { action, protocol, src, dst };
+        if (tokens.length) rule.dst_port = tokens.shift();
+        return rule;
       });
       return {
         hostname: document.getElementById('acl-hostname').value,
         acl_name: document.getElementById('acl-name').value,
-        acl_type: document.getElementById('acl-type').value,
+        acl_type: aclType,
         apply_to: document.getElementById('acl-apply').value || null,
         rules,
       };

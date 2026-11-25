@@ -16,3 +16,10 @@ credentials.json
 *.tfstate.*
 .terraform/
 crash.log
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.venv/
